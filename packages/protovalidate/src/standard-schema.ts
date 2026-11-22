@@ -21,6 +21,7 @@ import {
 } from "@bufbuild/protobuf";
 import { createValidator, type ValidatorOptions } from "./validator.js";
 import type { Violation } from "./error.js";
+import { checkInit } from "./check-init.js";
 
 /**
  * Convert a Violation to a StandardSchemaV1.Issue.
@@ -100,9 +101,21 @@ export function createStandardSchema<Desc extends DescMessage>(
           };
         }
 
+        // The input is unknown at runtime: create() does not check that
+        // values match their field's type, and the validator only evaluates
+        // the rules. Report values that don't fit their field, so that the
+        // returned message can always be serialized. 64-bit integers given as
+        // a safe integer number or a decimal string are converted.
+        const { issues, init } = checkInit(messageDesc, value);
+        if (issues.length > 0) {
+          return {
+            issues,
+          };
+        }
+
         const result = validator.validate(
           messageDesc,
-          create(messageDesc, value as MessageInitShape<Desc>),
+          create(messageDesc, init as MessageInitShape<Desc>),
         );
 
         switch (result.kind) {
